@@ -1,0 +1,61 @@
+# Demi-journée Data Science - Classification
+
+## Groupe 1 - SVM à noyau
+
+Entrainement du modèle :
+
+```{r}
+
+library(caret)
+library(e1071)
+library(pROC)
+
+data <- read.csv("data/farms_train.csv", sep=";", dec=",")
+
+data$DIFF <- as.factor(data$DIFF)
+levels(data$DIFF) <- make.names(levels(data$DIFF))
+
+# Validation croisée
+train_control <- trainControl(method = "cv",
+                              number = 10,
+                              classProbs = TRUE,
+                              summaryFunction = twoClassSummary)  
+
+# Définir la grille de recherche pour le tuning des hyperparamètres
+svm_grid <- expand.grid(C = c(0.1, 1, 10),
+                        sigma = c(0.01, 0.05, 0.1))
+
+# Entrainement
+svm_model <- train(DIFF ~ ., 
+                   data = data,
+                   method = "svmRadial",
+                   trControl = train_control,
+                   tuneGrid = svm_grid,
+                   metric = "ROC",
+                   preProcess = c("center", "scale"))
+
+# Résultats du modèle
+print(svm_model)
+
+# Prediction
+predictions <- predict(svm_model, data, type = "prob")
+
+# Calcul de la courbe ROC et de l'AUC
+roc_curve <- roc(data$DIFF, predictions$X1)
+auc_value <- auc(roc_curve)
+
+print(paste("AUC:", auc_value))
+plot(roc_curve, col = "blue", main = "Courbe ROC pour le modèle SVM à noyau")
+
+```
+
+Prédiction :
+
+```{r}
+
+test <- read.csv("data/farms_test.csv", sep=";", dec=",")
+predicted_classes <- predict(svm_model, test)
+print(predicted_classes)
+
+
+```
