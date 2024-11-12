@@ -7,5 +7,5 @@ KARAMI Aya
 STEPHANOU Georgios
 TRIOZON Lucas
 
-Nous allons tenter de prédire si l'accord d'un prêt est risqué ou non grâce à l'apprentissage supervisé sur nos données.
+Nous allons tenter de prédire si une exploitation agricole est dite financièrement saine ou non grâce à un apprentissage supervisé sur nos données.
 Il s'agit de prévoir le résultat d'une variable binaire d'après 6 autres variables.
