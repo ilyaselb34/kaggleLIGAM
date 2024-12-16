@@ -1,0 +1,148 @@
+---
+title: "Modèle Naif"
+date: "2024-12-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readr)     
+library(dplyr)     
+library(caret)     
+library(ggplot2)   
+library(pROC)      
+library(reshape2)  
+```
+
+# Modèle naïf : 
+
+L'objectif de cette première étape est de développer un modèle naïf simple afin de poser une base pour notre classification de données. 
+Un modèle naïf consiste à prédire systématiquement la classe majoritaire dans les données d'entraînement sans prendre en compte les caractéristiques des données.
+Ce type de modèle sera utilisé comme point de référence pour évaluer la performance de modèles plus complexes.
+
+```{r}
+data <- read.csv('../data/farms_train.csv', header = TRUE, sep = ";")
+data$DIFF <- as.factor(data$DIFF)
+
+cat("Aperçu des données :")
+print(head(data))
+
+cat("\nValeurs manquantes :\n")
+print(colSums(is.na(data)))
+
+```
+Dans cette section, nous avons chargé notre jeu de données en tant que dataframe, en transformant la colonne cible DIFF en facteur pour la classification, affichant un aperçu des premières lignes et aucune donnée manquante n'a été détectée.
+
+
+# Modèle naïf : prédiction de la classe majoritaire : 
+
+```{r}
+X <- data %>% select(-DIFF)
+y <- data$DIFF
+
+# Division des données en ensembles d'entraînement et de validation
+set.seed(42)
+trainIndex <- createDataPartition(y, p = 0.8, list = FALSE)
+X_train <- X[trainIndex, ]
+y_train <- y[trainIndex]
+X_val <- X[-trainIndex, ]
+y_val <- y[-trainIndex]
+
+# Identifier la classe majoritaire dans l'ensemble d'entraînement
+majority_class <- as.numeric(names(which.max(table(y_train))))
+cat(sprintf("\nClasse majoritaire : %d\n", majority_class))
+
+# Prédire la classe majoritaire pour toutes les observations
+y_naive_pred <- rep(majority_class, length(y_val))
+
+```
+Les données ont été divisées en deux parties :
+
+**Entraînement :** 80 % des données, utilisées pour identifier la classe majoritaire et entraîner le modèle.
+
+**Validation :** 20 % des données, utilisées pour évaluer les performances du modèle.
+
+Cette séparation permet d'évaluer la performance sur des données non vues, minimisant le risque de surapprentissage.
+
+La classe majoritaire dans l'ensemble d'entraînement est la classe 1, donc toutes les prédictions du modèle naïf seront assignées à cette classe.
+
+```{r}
+y_naive_pred <- factor(y_naive_pred, levels = levels(y_val))
+
+# Calcul de la matrice de confusion
+conf_matrix <- confusionMatrix(y_naive_pred, y_val, positive = "1")
+
+cat("\nMatrice de confusion :\n")
+print(conf_matrix)
+
+
+```
+Le modèle naïf atteint une Accuracy de 53 %, ce qui correspond exactement au taux d'occurrence de la classe majoritaire dans l'ensemble d'entraînement. 
+
+Cela montre que ce modèle n’apporte aucune capacité prédictive, mais sert de baseline pour comparer nos modèles plus complexes.
+
+
+```{r}
+# Visualisation de la matrice de confusion
+conf_matrix_plot <- table(y_val, y_naive_pred)
+
+# Transformer la table en format long
+conf_matrix_melted <- melt(conf_matrix_plot)
+
+colnames(conf_matrix_melted) <- c("Valeurs_réelles", "Prédictions", "value")
+head(conf_matrix_melted)
+
+ggplot(data = conf_matrix_melted, aes(x = Prédictions, y = Valeurs_réelles, fill = value)) +
+  geom_tile(color = "black") +
+  geom_text(aes(label = value), color = "white", size = 5) +
+  scale_fill_gradient(low = "#D6EAF8", high = "#2E86C1") +
+  labs(
+    title = "Matrice de confusion - Modèle naïf",
+    x = "Prédictions",
+    y = "Valeurs réelles"
+  ) +
+  theme_minimal()
+```
+
+La matrice de confusion montre les limites du modèle dans ce cas : 
+ **Accuracy :** 52.54% égale à la proportion de la classde majoritaire.
+ **Rappel :** 100% toutes les instances de la classe majoritaire (1) sont correctement prédites.
+ **Spécifité :** 0%, aucun instance de la classe minoritaire (0) n'est correctement identifiée.
+ 
+ Le modèle est donc biaisé en faveur de la classe majoritaire 
+ 
+```{r}
+y_val <- factor(y_val, levels = c("0", "1"))  # '0' = classe négative, '1' = classe positive
+
+# Calcul des probabilités pour la classe majoritaire
+class_1_proba <- mean(y_train == 1)  
+y_naive_prob <- rep(class_1_proba, length(y_val))
+
+roc_curve <- roc(response = y_val, predictor = y_naive_prob, levels = c("0", "1"), direction = "<")
+
+# Calcul de l'AUC
+auc_naive <- auc(roc_curve)
+cat(sprintf("\nAUC du modèle naïf : %.2f\n", auc_naive))
+
+# Tracé de la courbe ROC
+plot(roc_curve, main = "Courbe ROC - Modèle naïf", col = "blue", lwd = 2)
+abline(0, 1, col = "red", lty = 2)
+legend("bottomright", legend = sprintf("AUC = %.2f", auc_naive), col = "blue", lwd = 2)
+
+
+```
+
+La courbe ROC est une visualisation des performances du modèle, montrant le compromis entre le taux de vrais positifs (Sensibilité) et le taux de faux positifs (1 - Spécificité).
+
+Le modèle naïf a servi de référence pour évaluer la pertinence et les performances des modèles plus avancés.
+Avec une AUC DE 0,525 reflète une absence de capacité prédictive.
+
+En revanche, nos modèles optimisés ont montré des gains significatifs :
+
+**La Régression Logistique :** avec une AUC de 0.933, a été le meilleur modèle grâce à son excellent compromis entre rappel et spécificité.
+
+**Le SVM :** suit de près avec une AUC de 0.921, confirmant son efficacité pour des séparations non linéaires.
+
+**Le KNN :** bien qu'efficace avec une AUC de 0.864, reste légèrement en retrait par rapport aux deux précédents.
+
+Ces résultats nous permetttent de retenir la \(Régression Logistique\) comme modèle principal pour les prédictions futures. Cette analyse représente une base solide pour explorer d'autres améliorations probable à l'avenir, telles que l'intégration de nouvelles variables ou des approches d'assemblage.
