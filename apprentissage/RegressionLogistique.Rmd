@@ -19,10 +19,12 @@ library(ROCR)
 library(e1071)
 ```
 
+
+
 ## Chargement et préparation des données
 ```{r data-preparation}
 # Charger les données d'entraînement
-train_data <- read.csv("data/farms_train.csv", sep = ";", dec = ",")
+train_data <- read.csv("../data/farms_train.csv", sep = ";", dec = ",")
 
 # Aperçu des données
 cat("Aperçu des données d'entraînement :\n")
@@ -55,7 +57,12 @@ X_train <- predict(scaler, X_train)
 X_val <- predict(scaler, X_val)
 ```
 
-## Régression logistique
+
+## Régression logistique 
+
+La \(Régression Logistique\) a été entraînée sur les données d'entraînement (X_train et y_train). Elle utilise la fonction \(logit\) pour modéliser la probabilité d'appartenir à la classe DIFF = 1.
+C'est un modèle linéaire robuste adapté à des tâches de classification binaire
+
 ```{r logistic-regression}
 # Entraîner le modèle de régression logistique
 log_reg <- train(
@@ -67,6 +74,7 @@ log_reg <- train(
 # Prédictions sur l'ensemble de validation
 y_pred <- predict(log_reg, X_val)
 ```
+Le modèle prédit les données de validation (X_val) pour générer des prédictions de classe (0 ou 1), ce qui permettra d'évaluer les performances du modèle.
 
 ## Évaluation du modèle
 ```{r evaluation}
@@ -74,41 +82,62 @@ y_pred <- predict(log_reg, X_val)
 conf_matrix <- confusionMatrix(y_pred, y_val)
 cat("\nMatrice de confusion :\n")
 print(conf_matrix)
+```
 
+La matrice de confusion résume les prédictions du modèle sur l'ensemble de validation :
+
+**Vrais Positifs :** 18 instances de la classe 0 sont correctement identifiées.
+**Faux Négatifs :** 10 instances de la classe 0 sont mal classées en 1.
+**Vrais Négatifs :** 27 instances de la classe 1 sont correctement identifiées.
+**Faux Positifs :** 4 instances de la classe 1 sont mal classées en 0.
+
+Le modèle réussit à bien prédire la majorité des instances, mais les faux négatifs pour la classe 0 restent significatifs, cela impacte la sensibilité du modèle.
+
+```{r}
 # Rapport de classification
 cat("\nRapport de classification :\n")
 print(conf_matrix$byClass)
 
+```
+**Sensibilité :** Le modèle a du mal à identifier toutes les instances positives (classe 0), d'où un score modéré de 64.29  %.
+
+**Spécificité :** Le modèle est très bon pour détecter la classe 1 avec plus de 87 % de succès.
+
+**Précision :** Lorsqu’il prédit la classe 0, on remarque qu'il est correct dans 82 % des cas.
+
+**Balanced Accuracy :** Un score équilibré de 75.69 % montre une performance correcte sur les deux classes.
+
+```{r}
 # Score d'accuracy
 accuracy <- conf_matrix$overall["Accuracy"]
 cat(sprintf("\nScore d'accuracy : %.2f\n", accuracy))
 
+```
+
+\(L'Accuracy\) mesure la proportion totale des prédictions correctes, avec \(76.27 %\), le modèle offre performance satisfaisante.
+
+```{r}
 # AUC et courbe ROC
 probabilities <- predict(log_reg, X_val, type = "prob")
 y_pred_prob <- probabilities[, 2]
 roc_curve <- roc(y_val, y_pred_prob)
+
 auc_value <- auc(roc_curve)
 cat(sprintf("\nAUC (Régression Logistique) : %.2f\n", auc_value))
 
+```
+
+**AUC :** 0.88 est un excellent résultat, cela signifie que le modèle a une forte capacité pour distinguer les classes 0 et 1, ce qui indique un bon modèle.
+
+```{r}
 # Tracer la courbe ROC
 plot(roc_curve, col = "blue", main = "Courbe ROC - Régression Logistique")
 abline(a = 0, b = 1, lty = 2, col = "red")
 ```
 
-## Prédictions sur les données de test
-```{r test-predictions}
-# Charger les données de test
-farm_test <- read.csv("data/farms_test.csv", sep = ";", dec = ",")
+La courbe ROC permet d'évaluer la performance du modèle en comparant la sensibilité (taux de vrais positifs) et la spécificité/
 
-# Vérification des valeurs manquantes
-cat("\nValeurs manquantes dans les données de test :\n")
-print(colSums(is.na(farm_test)))
+La courbe monte au-dessis de la diagonale aléatoire(rouge), indiquant que le modèle est capable de discriminer efficacement les deux classes. De plus, avec une AUC de 0.88, le modèle distingue correctement une instance positive d'une instance négative dans 88% des cas.
 
-# Normaliser les données de test avec le même scaler
-farm_test_scaled <- predict(scaler, farm_test)
-farm_test_predictions <- predict(log_reg, farm_test_scaled)
-
-# Ajouter les prédictions aux données de test
-farm_test$DIFF_Predicted <- farm_test_predictions
-write.csv(farm_test[, c("DIFF_Predicted")], "resultats_test.csv", row.names = FALSE)
-cat("\nLes prédictions sont dans le fichier 'resultats_test.csv'.\n")
+Bien que la régression logistique présente de bonnes performances, elle n’est pas optimale, notamment en raison de sa sensibilité modérée et des faux négatifs observés.
+D'autres modèles plus complexes (comme le SVM ou le KNN) pourraient être testés pour améliorer la performance globale et mieux gérer les déséquilibres entre les classes.
